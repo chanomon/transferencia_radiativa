@@ -9,32 +9,52 @@
 #    Free Documentation License".
 
 
-
+from matplotlib import pyplot as plt
 import math
 from astropy.modeling.blackbody import blackbody_lambda
 from tqdm import tqdm
+from scipy.interpolate import interp1d
 c= 3e10 #cm/s
 kB = 1.38e-16 #[eg/K]
 
 
 #Temperature model [K]
 def T(x):
-    return 1e6
-
+    with open("T.dat","r") as Tf:
+        T_dat=Tf.readlines()
+    z=[]
+    Tr=[]
+    
+    for line in T_dat:
+        if line[0] != '#':
+            a,b = line.split()
+            z.append(float(a))
+            Tr.append(float(b))
+    f = interp1d(z,Tr)
+    return f(x)
 #Density model [p/cm3]
 def n(x):
-    return 1e7
-
+    with open("n.dat","r") as nf:
+        n_dat=nf.readlines()
+    z=[]
+    nr=[]
+    for line in n_dat:
+        if line[0] != '#':
+        	a,b = line.split()
+        	z.append(float(a))
+        	nr.append(float(b))
+    f = interp1d(z,nr)
+    return f(x)
 
 #[erg /cm2 sec cm ster]
 def S(x,wl):
-    return blackbody_lambda(wl, T(x))
+    return blackbody_lambda(wl*1e8, T(x))*1e8 
 #opacity [cm-1]
 def k(x,wl):
     
     nu = c/wl
     #Ref Dulk (1985) eq.21
-    return 0.2*pow(n(x),2)*pow(T(x),-3/2.)*pow(nu,-2)
+    return 1e5 * 0.2*pow(n(x),2)*pow(T(x),-3/2.)*pow(nu,-2)
 
 #optical depth (adimensional)
 def tau(dx,x,wl):
@@ -45,18 +65,30 @@ def rayleigh(I,wl):
 
 
 
-N = 6.96e3
+N = 6.96e2 #Number of points in the raypath
 I0= 0.0 #[erg /cm2 sec cm ster]
-dx = 100e5#[cm]
+dx = 1e3#[km]
 #wl = 6565.#Amstrongs
 nu = 1e8 # [Hz]
 wl = c/nu
 
 layers = range(1,int(N+1))
 I = I0
-for i in tqdm(layers):
+
+X=[]
+Y=[]
+
+for i in layers:#tqdm(layers):
     x = float(i) * dx
     I = I*math.exp(-tau(dx,x,wl)) + S(x,wl)*(1-math.exp(-tau(dx,x,wl)))
-    pass
+    X.append(x)
+    Y.append(rayleigh(I.value,wl))
+    #print(x,I.value)
+    #pass
     #print(i,I)
 print("%e"%rayleigh(I.value,wl))
+fig,ax =plt.subplots()
+ax.plot(X,Y)
+ax.set_xscale("log")
+ax.set_yscale("log")
+plt.show()
